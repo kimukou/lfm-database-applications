@@ -137,6 +137,10 @@ class VirtualGrid(wx.Panel):
         self.grid.Bind( gridlib.EVT_GRID_CELL_RIGHT_CLICK, self.OnGridMenuPopup )
         self.grid.Bind( gridlib.EVT_GRID_CELL_LEFT_CLICK, self.OnGridCellClick )
         self.grid.Bind( gridlib.EVT_GRID_RANGE_SELECT, self.OnGridRangeSelect )
+        self.grid.Bind( gridlib.EVT_GRID_CELL_CHANGE, self.OnGridCellChange )
+        self.grid.Bind( gridlib.wx.EVT_KEY_DOWN, self.OnGridKeyDownUp )
+        #self.grid.Bind( gridlib.wx.EVT_KEY_UP, self.OnGridKeyDownUp )
+        
         self.Bind( gridlib.wx.EVT_MENU, self.OnGridMenuSelect )
         
         # グリッド表示
@@ -188,7 +192,7 @@ class VirtualGrid(wx.Panel):
             self.grid.SetColLabelRenderer( col, MyColLabelRenderer(self.typeicon, self.fname) )
 
     ## 仮想グリッドスクロール ----------------------------------------------------------------------
-    def OnScroll( self, event ): 
+    def OnScroll( self, event ):
         position = event.GetPosition()
         if self.inLeftClick == True:
             self.bottomRowNo = position + self.rowcount
@@ -287,6 +291,24 @@ class VirtualGrid(wx.Panel):
             sdata = lfmtblpy.RD5NumericNum2StrR1(ndata.getPtr(), NInfo.getPtr(), 0, NInfo.getScale())
             data = sdata
         return data
+
+    ## カーソルダウン/アップ -----------------------------------------------------------------------
+    def OnGridKeyDownUp(self, event):
+        cursorRow = self.grid.GetGridCursorRow() + self.currentView
+        if event.KeyCode == wx.WXK_DOWN:
+            if cursorRow + 1 >= self.currentView + self.gridrows:
+                if cursorRow < self.rows:
+                    self.Display( self.currentView + 1 )
+                    self.scroll.SetScrollbar( cursorRow, self.rowcount, self.rows, self.rowcount )
+            event.Skip()
+        elif event.KeyCode == wx.WXK_UP:
+            if cursorRow <= self.currentView:
+                if cursorRow > 0:
+                    self.Display( self.currentView - 1 )
+                    self.scroll.SetScrollbar( cursorRow, self.rowcount, self.rows, self.rowcount )
+            event.Skip()
+        else:
+            event.Skip()
 
     ## グリッド列ラベル取得 ------------------------------------------------------------------------
     def GetColLabelValue(self, col):
@@ -473,6 +495,11 @@ class VirtualGrid(wx.Panel):
         else:
             self.inLeftClick = False
         self.Display( self.currentView )
+        event.Skip()
+
+    ## グリッドセル変更イベント処理 ------------------------------------------------------------
+    def OnGridCellChange(self, event):
+        self.wsFrame.OnGridCellChange(event)
         event.Skip()
 
     ## グリッドメニュー選択イベント処理 ------------------------------------------------------------
