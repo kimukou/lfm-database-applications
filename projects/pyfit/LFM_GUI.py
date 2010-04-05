@@ -40,7 +40,7 @@ from LFM_TextWizard import *
 
 # バージョン情報
 ABOUT_NAME      = "PyFIT"
-ABOUT_VERSION   = "1.5.4"
+ABOUT_VERSION   = "1.5.5"
 ABOUT_COPYRIGHT = "(C)2009-2010 Turbo Data Laboratories, Inc.  "
 
 # メインフレームアイコン
@@ -430,10 +430,11 @@ class MyFrame(wx.Frame):
 
         # エンジン初期化
         self.initEngine()
+
         self._mgr.Update()
-	license = getLicense()
+        license = getLicense()
 	ret = lfmtblpy.RD5SetPassword(license)
-	#print license
+
         return
 
     ## イベントBind --------------------------------------------------------------------------------
@@ -522,10 +523,10 @@ class MyFrame(wx.Frame):
         # MenuTool
         self.Bind(wx.EVT_MENU, self.OnMenuItemCondense, id=xrc.XRCID("MenuItemCondense"))
         self.Bind(wx.EVT_MENU, self.OnMenuItemCondenseAll, id=xrc.XRCID("MenuItemCondenseAll"))
-
+	
         # MenuHelp
         self.Bind(wx.EVT_MENU, self.OnMenuItemAbout, id=xrc.XRCID("MenuItemAbout"))
-	self.Bind(wx.EVT_MENU, self.OnMenuItemLicenseUpdate, id=xrc.XRCID("MenuItemLicenseUpdate"))
+        self.Bind(wx.EVT_MENU, self.OnMenuItemLicenseUpdate, id=xrc.XRCID("MenuItemLicenseUpdate"))
 
         # WSTree
         self.Bind(wx.EVT_TREE_SEL_CHANGED, self.OnWSSelChanged, self.wstree)
@@ -1335,7 +1336,7 @@ class MyFrame(wx.Frame):
             if eventId in (xrc.XRCID("MenuItemClearData"), xrc.XRCID("PMenuItemClearData")): # クリア
                 data1 = ""
             else: # Fill
-                Dlg = wx.TextEntryDialog(self, "Data:", "Input Data", defaultValue="")
+                Dlg = wx.TextEntryDialog(self, u"データ：", u"データ入力", defaultValue="")
                 AnsBtn = Dlg.ShowModal()
                 data1 = Dlg.GetValue()
                 Dlg.Destroy()
@@ -1356,6 +1357,67 @@ class MyFrame(wx.Frame):
                 listDataArg = listData[pos-1]
             else:
                 listDataArg = listDataFill
+            ret = MFillEx(tableName, fltName, startRow, nRow, listDataArg, sid, RECONO_MARK_NO)
+            self.outputLog(ret)
+            if ret.retCode < 0: # error
+                continue # 処理を続ける
+
+        grid.ResetCurrentView()
+        
+        # 使用メモリ
+        self.updateUsedMemory()
+        return
+
+    ## グリッド直接セルデータ変更（Fill）-----------------------------------------------------------
+    def OnGridCellChange(self, event):
+        if self.datatab.GetPageCount() < 1: # グリッドなし
+            Dlg = wx.MessageDialog(self, u"操作対象のテーブルが開かれていません。", u"エラー", wx.OK | wx.ICON_ERROR)
+            Dlg.ShowModal()
+            return
+
+        idxPage = self.datatab.GetSelection()
+        grid = g_WSTree.listGrid[idxPage]
+        (tid, sid) = g_WSTree.getTidSidFromGrid(grid)
+        
+        # JOINチェック
+        if g_WSInfo.getCountJoinRef(tid) > 0:
+            Dlg = wx.MessageDialog(self, u"このテーブルはJoinで参照されています。\n操作の対象にできません。", u"エラー", wx.OK | wx.ICON_ERROR)
+            Dlg.ShowModal()
+            return
+        if g_WSInfo.isJoinTable(tid):
+            Dlg = wx.MessageDialog(self, u"Joinテーブルは操作の対象にできません。", u"エラー", wx.OK | wx.ICON_ERROR)
+            Dlg.ShowModal()
+            return
+
+        # 選択範囲取得
+        setSize = g_WSInfo.getSetSize(tid, sid)
+        rowcol = grid.GetExSelectedRowsCols()
+        cols = grid.GetSelectedCols()
+
+        startRow = rowcol[0]
+        endRow   = rowcol[1]
+        startCol = rowcol[2]
+        endCol   = rowcol[3]
+        rowCnt = endRow - startRow + 1
+
+        # テーブル更新
+        listFilter = g_WSInfo.getFilterList(tid)
+
+        nRow = rowCnt
+        nCol = len(cols)
+        data1 = grid.grid.GetCellValue(event.GetRow(), event.GetCol())
+        listDataFill = [data1 for i in range(nRow)]
+
+        # DB書込
+        tableName = g_WSInfo.getTableName(tid)
+        pos=0
+        for i in cols:
+            idxCol = i
+            pos+=1
+            if idxCol == 0: # RecNo列
+                continue
+            fltName = grid.GetColLabelValue(idxCol)
+            listDataArg = listDataFill
             ret = MFillEx(tableName, fltName, startRow, nRow, listDataArg, sid, RECONO_MARK_NO)
             self.outputLog(ret)
             if ret.retCode < 0: # error
@@ -3029,10 +3091,6 @@ class MyFrame(wx.Frame):
         file.write(password)
         file.close()
         return
-            
-            
-        return
-
 # --------------------------------------------------------------------------------------------------
 class OutputLogThread(threading.Thread):
     def __init__(self, ctrl, queue):
@@ -4515,7 +4573,6 @@ def getLicense():
             return a[1]
     file.close()
     return null
-
 # --------------------------------------------------------------------------------------------------
 ## メイン
 if __name__ == "__main__":
@@ -4534,6 +4591,7 @@ if __name__ == "__main__":
     if argc > 2:
         ENC_DB = argvs[2]
     print "ENC_OS[%s],ENC_DB[%s]" % (ENC_OS, ENC_DB)
+
     app = MyApp(False)
     g_App = app
     app.MainLoop()
